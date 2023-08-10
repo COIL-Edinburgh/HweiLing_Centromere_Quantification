@@ -13,11 +13,11 @@
 	</parent>
 
 	<groupId>bio.coil</groupId>
-	<artifactId>Thom_Titans</artifactId>
+	<artifactId>HweiLing_Centromere_Quantification</artifactId>
 	<version>1.0.1</version>
 
-	<name>Thom Titans</name>
-	<description>A project to find and measure the area and axes lengths of yeast? cells</description>
+	<name>HweiLing Centromere Quantification</name>
+	<description>A project to find check centromereic signal of Endogenous and Trans-gene proteins</description>
 	<url>https://www.ed.ac.uk/biology/wcb/centre-optical-instrumentation-laboratory-coil</url>
 	<inceptionYear>2023</inceptionYear>
 	<organization>
@@ -63,22 +63,22 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:https://github.com/CoilEdinburgh/Thom_Titans</connection>
-		<developerConnection>scm:git:git@github.com:CoilEdinburgh/Thom_Titans</developerConnection>
+		<connection>scm:git:https://github.com/CoilEdinburgh/HweiLing_Centromere_Quantification</connection>
+		<developerConnection>scm:git:git@github.com:CoilEdinburgh/HweiLing_Centromere_Quantification</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/CoilEdinburgh/Thom_Titans</url>
+		<url>https://github.com/CoilEdinburgh/HweiLing_Centromere_Quantification</url>
 	</scm>
 	<issueManagement>
 		<system>GitHub Issues</system>
-		<url>https://github.com/CoilEdinburgh/Thom_Titans/issues</url>
+		<url>https://github.com/CoilEdinburgh/HweiLing_Centromere_Quantification/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>None</system>
 	</ciManagement>
 
 	<properties>
-		<package-name>bio.coil.CoilEdinburgh.Thom_Titans</package-name>
-		<main-class>Thom_Titans</main-class>
+		<package-name>bio.coil.CoilEdinburgh.HweiLing_Centromere_Quantification</package-name>
+		<main-class>HweiLing_Centromere_Quantification</main-class>
 		<license.licenseName>cc0</license.licenseName>
 		<license.copyrightOwners>University of Edinburgh</license.copyrightOwners>
 	</properties>
@@ -118,6 +118,12 @@
 			<artifactId>fiji</artifactId>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/ome/bio-formats_plugins -->
+
+        <dependency>
+			<groupId>ome</groupId>
+			<artifactId>formats-gpl</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>bio-formats_plugins</artifactId>
@@ -133,10 +139,6 @@
 			<artifactId>scifio-bf-compat</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>ome</groupId>
-			<artifactId>formats-gpl</artifactId>
-		</dependency>
 
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -161,7 +163,7 @@
 		<dependency>
 			<groupId>ch.epfl.biop</groupId>
 			<artifactId>ijl-utilities-wrappers</artifactId>
-			<version>0.7.10</version>
+			<version>0.3.23</version>
 		</dependency>
 
 
