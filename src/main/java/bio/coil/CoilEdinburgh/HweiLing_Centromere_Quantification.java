@@ -147,6 +147,7 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                     slice405 = ops.filter().gauss(slice405, 5);
                     RandomAccessibleInterval<T> slice488 = getChannel(zProj, 1);
                     RandomAccessibleInterval<T> slice555 = getChannel(zProj, 2);
+
                     ArrayList<double[]> output = new ArrayList<>();
                     for (Roi cell : cells) {
                         //Find nuclei ch0
@@ -157,10 +158,11 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                         roiManager.reset();
                         //For each nucleus find centromeres in ch3 threshold per nucleus
                         for (Roi nucleus:nucleii) {
-                            double[] intensities = new double[6];
+                            double[] intensities = new double[8];
                             intensities[0] = getRoiIntensity(slice488,nucleus)*nucleus.getStatistics().area;
                             intensities[2] = getRoiIntensity(slice555,nucleus)*nucleus.getStatistics().area;
                             intensities[4] = nucleus.getStatistics().area;
+                            intensities[6] = getRoiIntensity(slice647,nucleus)*nucleus.getStatistics().area;
                             ArrayList<Roi> centromeres = findCentromeres(ImageJFunctions.wrap(slice647,"slice"), nucleus);
                             roiManager.reset();
                             double area = 0;
@@ -168,11 +170,14 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                                 area += centromere.getStatistics().area;
                                     intensities[1] += getRoiIntensity(slice488,centromere)*centromere.getStatistics().area;
                                     intensities[3] += getRoiIntensity(slice555,centromere)*centromere.getStatistics().area;
+                                    intensities[7] += getRoiIntensity(slice647,centromere)*centromere.getStatistics().area;
                             }
                             intensities[0]= (intensities[0]-intensities[1])/(intensities[4]-area);
                             intensities[2]= (intensities[2]-intensities[3])/(intensities[4]-area);
+                            intensities[6]= (intensities[6]-intensities[7])/(intensities[4]-area);
                             intensities[1] = intensities[1]/area;
                             intensities[3] = intensities[3]/area;
+                            intensities[7] = intensities[7]/area;
                             intensities[5] = area;
                             //Draw centromeres and label cell
                             output.add(intensities);
@@ -184,10 +189,12 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                     imp488.show();
                     ImagePlus imp555 = ImageJFunctions.wrap(slice555,"555");
                     imp555.show();
+                    ImagePlus imp647 = ImageJFunctions.wrap(slice647,"647");
+                    imp647.show();
                     overlay.show();
                     IJ.run(overlay,"32-bit","");
 
-                    IJ.run("Merge Channels...", "c1=[555] c2=[488] c4=[Overlay] create");
+                    IJ.run("Merge Channels...", "c1=[555] c2=[488] c3=[647] c4=[Overlay] create");
                     IJ.save(WindowManager.getCurrentImage(), Paths.get(String.valueOf(filePath), filename + "_Overlay.tif").toString());
                     try {
                         MakeResults(output, T1, T2);
@@ -313,7 +320,7 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
             bufferedWriter.newLine();
             bufferedWriter.write("Threshold 1 = "+ T1 + " Threshold 2 = " + T2);
             bufferedWriter.newLine();
-            bufferedWriter.write("File, Number,Nuclear_Area, Cent_Area, 488_total, 488_centromere, 555_total, 555_centromere, T2>448>T1, T2>555>T1, 448>T2, 555>T2");//write header 1
+            bufferedWriter.write("File, Number,Nuclear_Area, Cent_Area, 488_total, 488_centromere, 555_total, 555_centromere,647_total, 647_centromere, T2>448>T1, T2>555>T1, 448>T2, 555>T2");//write header 1
             bufferedWriter.newLine();
             int partial_488 = 0;
             int partial_555 = 0;
@@ -324,8 +331,10 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
             double average_555_area = 0;
             double average_488_cell = 0;
             double average_555_cell = 0;
+            double average_647_cell = 0;
             double average_488_cent = 0;
             double average_555_cent = 0;
+            double average_647_cent = 0;
             int count = 0;
 
             for (int i =0; i < intensities.size(); i++){//for each slice create and write the output string
@@ -337,8 +346,10 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                     average_555_area += values[5];
                     average_488_cell += values[0];
                     average_555_cell += values[2];
+                    average_647_cell += values[6];
                     average_488_cent += values[1];
                     average_555_cent += values[3];
+                    average_647_cent += values[7];
 
                     if(aboveThreshold(values[1], values[0],T2)){
                         full_488++;
@@ -352,14 +363,14 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                     }
 
                     bufferedWriter.newLine();
-                    bufferedWriter.write(filename + "," + (i + 1) + "," + values[4] + "," + values[5] + "," + values[0] + "," + values[1] + "," + values[2] + "," + values[3] +
+                    bufferedWriter.write(filename + "," + (i + 1) + "," + values[4] + "," + values[5] + "," + values[0] + "," + values[1] + "," + values[2] + "," + values[3] + ","+values[6] + "," + values[7] +
                             "," + (aboveThreshold(values[1], values[0],T1)&!aboveThreshold(values[1] , values[0], T2))  + "," + (aboveThreshold(values[3] , values[2], T1)&!aboveThreshold(values[3] , values[2], T2))
                             + "," + aboveThreshold(values[1] , values[0], T2)+ "," + aboveThreshold(values[3] , values[2], T2));
                 }
             }
             bufferedWriter.newLine();
             bufferedWriter.write(filename + ", Total/Average,"+average_488_area/count + "," +average_555_area/count + "," +average_488_cell/count + "," +average_488_cent/count +
-                    "," +average_555_cell/count + "," +average_555_cent/count + "," +partial_488 + "," +partial_555 + "," +full_488 + "," +full_555);
+                    "," +average_555_cell/count + "," +average_555_cent/count + ","+average_647_cell/count + "," +average_647_cent/count + "," +partial_488 + "," +partial_555 + "," +full_488 + "," +full_555);
             bufferedWriter.close();
         } catch (IOException ex) {
             System.out.println(
