@@ -1,67 +1,27 @@
-This is an example Maven project implementing an ImageJ2 command.
+# A project to find check centromereic signal of Endogenous and Trans-gene proteins
 
-For an example Maven project implementing an **original ImageJ plugin**, see:
-    https://github.com/imagej/example-legacy-plugin
+This plugin takes as input a folder containing 4 colour .ims Z-stacks files with a channel order of DNA (DAPI), Endogenous protein (GFP), Transgene protein(Alexa 555), Centromere Marker (Alexa 647). 
+The plugin also allows users to set thresholds for the centromeric/nuclear intensity for the 488 and 555 channels to define total or partial localisation to the centromeres.
+The plugin:
+- Finds the cell outlines using the 647 channel and cellpose with the cyto2 model with a 60 pixel cell diameter.
+- For each Cell outline finds the nucleii in the DAPI channel using IJ 'Default' thresholding, a 250-Infinity pixel size and circularity=0.30-1.00
+- For each Nucleus ROi finds the centrosomes in the 647 channel using the 'Triangle' thresholding and size=5-500 pixel size cut off.
+- Outputs to a Results.csv in the original folder the areas and intensities of the nuclear and centromeric ROIs for each nucleus in the 488, 555 and 647 channels and whether the 488 and 555 show partial or full localisation based on the user defined thresholds.
+- Outputs an Overlay image to the original folder of the Z-projected 488 (green),555 (red), 647 (blue) and nuclear and centromeric labels and outlines (white).
 
-It is intended as an ideal starting point to develop new ImageJ2 commands
-in an IDE of your choice. You can even collaborate with developers using a
-different IDE than you.
+This repository is based off an example Maven project implementing an ImageJ2 command.
+Visit [this link](https://github.com/imagej/example-imagej2-command/generate)
+to view the original template repository.
 
-* In [Eclipse](http://eclipse.org), for example, it is as simple as
-  _File &#8250; Import... &#8250; Existing Maven Project_.
-
-* In [NetBeans](http://netbeans.org), it is even simpler:
-  _File &#8250; Open Project_.
-
-* The same works in [IntelliJ](http://jetbrains.net).
-
-* If [jEdit](http://jedit.org) is your preferred IDE, you will need the
-  [Maven Plugin](http://plugins.jedit.org/plugins/?MavenPlugin).
-
-Die-hard command-line developers can use Maven directly by calling `mvn`
-in the project root.
-
-However you build the project, in the end you will have the `.jar` file
-(called *artifact* in Maven speak) in the `target/` subdirectory.
-
-To copy the artifact into the correct place, you can call
-`mvn -Dscijava.app.directory="/path/to/ImageJ2.app/"`.
-This will not only copy your artifact, but also all the dependencies.
-
-Developing code in an IDE is convenient, especially for debugging.
-To that end, this project contains a `main` method which launches ImageJ2,
-loads an image and runs the command.
-
-Since this project is intended as a starting point for your own
-developments, it is in the public domain.
-
-How to use this project as a starting point
-===========================================
-
-1. Visit [this link](https://github.com/imagej/example-imagej2-command/generate)
-   to create a new repository in your space using this one as a template.
-
-2. [Clone your new repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
-
-3. Edit the `pom.xml` file, fixing all the lines labeled `FIXME`.
-
-4. Remove the `GaussFiltering.java` file and add your own `.java` files
-   to `src/main/java/<package>/` (if you need supporting files such as icons
-   in the resulting `.jar` file, put them into `src/main/resources/`)
-
-5. Replace the contents of `README.md` with information about your project.
-
-6. Make your initial
-   [commit](https://docs.github.com/en/desktop/contributing-and-collaborating-using-github-desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project) and
-   [push the results](https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository)!
-
-### Eclipse: To ensure that Maven copies the command to your ImageJ2 folder
-
-1. Go to _Run Configurations..._
-2. Choose _Maven Build_
-3. Add the following parameter:
-    - name: `scijava.app.directory`
-    - value: `/path/to/ImageJ2.app/`
-
-This ensures that the final `.jar` file will also be copied
-into your ImageJ2 folder everytime you run the Maven build.
+### Pre-requisites:
+To use this script you need to have Cellpose installed on your computer and the BIOP Cellpose wrapper installed in your IJ plugins.
+To install Cellpose to use with ImageJ on a windows computer;
+- Install Anaconda from https://www.anaconda.com/products/distribution
+- Add Anaconda to path https://www.datacamp.com/tutorial/installing-anaconda-windows, you need to have admin rights on your computer.
+- Install Cellpose https://github.com/MouseLand/cellpose#local-installation
+- Add the ijl-utilities-wrapper jar to your ImageJ plugins folder (download the jar here: https://mvnrepository.com/artifact/ch.epfl.biop/ijl-utilities-wrappers/0.3.23)
+- BIOP should appear as a plugin, navigate to BIOP -> Cellpose -> Define Env and prefs
+- Set CellposeEnvDirectory to your Anaconda\envs\cellpose . On my computer this is C:\Users\username\Anaconda3\envs\cellpose (if this doesn’t exist you have not managed to install Cellpose correctly).
+- Set EnvType to conda
+- Only UseGpu should be ticked
+- You can now use Cellpose through ImageJ

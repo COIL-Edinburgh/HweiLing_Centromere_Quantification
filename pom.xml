@@ -14,7 +14,7 @@
 
 	<groupId>bio.coil</groupId>
 	<artifactId>HweiLing_Centromere_Quantification</artifactId>
-	<version>1.0.1</version>
+	<version>1.1.0</version>
 
 	<name>HweiLing Centromere Quantification</name>
 	<description>A project to find check centromereic signal of Endogenous and Trans-gene proteins</description>
