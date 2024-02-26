@@ -17,7 +17,7 @@ to view the original template repository.
 To use this script you need to have Cellpose installed on your computer and the BIOP Cellpose wrapper installed in your IJ plugins.
 To install Cellpose to use with ImageJ on a windows computer;
 - Install Anaconda from https://www.anaconda.com/products/distribution
-- Add Anaconda to path https://www.datacamp.com/tutorial/installing-anaconda-windows, you need to have admin rights on your computer.
+- Add Anaconda to path https://www.datacamp.com/tutorial/installing-anaconda-windows, you need to have admin rights on your computer. Make sure to open command prompt and initialise anaconda ('conda init')
 - Install Cellpose https://github.com/MouseLand/cellpose#local-installation
 - Add the ijl-utilities-wrapper jar to your ImageJ plugins folder (download the jar here: https://mvnrepository.com/artifact/ch.epfl.biop/ijl-utilities-wrappers/0.3.23)
 - BIOP should appear as a plugin, navigate to BIOP -> Cellpose -> Define Env and prefs
