@@ -12,20 +12,15 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.Roi;
+import ij.plugin.ChannelSplitter;
+import ij.plugin.ZProjector;
 import ij.plugin.frame.RoiManager;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import io.scif.*;
-import io.scif.bf.BioFormatsFormat;
-import io.scif.config.SCIFIOConfig;
 import io.scif.services.DatasetIOService;
 import io.scif.services.FormatService;
-import io.scif.config.SCIFIOConfig.ImgMode;
-import io.scif.ome.OMEMetadata;
-import loci.common.Location;
-import net.imagej.Dataset;
 import net.imagej.ImageJ;
-import net.imagej.axis.CalibratedAxis;
 import net.imagej.ops.OpService;
 import net.imagej.ops.Ops;
 import net.imagej.ops.special.computer.Computers;
@@ -37,7 +32,6 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.roi.MaskInterval;
-import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
@@ -52,11 +46,9 @@ import java.awt.*;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.List;
 
 /**
  * This example illustrates how to create an ImageJ {@link Command} plugin.
@@ -96,10 +88,28 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
     @Parameter(label = "Threshold 2 (full): ")
     public double T2 = 2;
 
+    @Parameter(label = "Centromere channel (0-3): ")
+    public int centromereCh = 3;
+
+    @Parameter(label = "DNA channel (0-3): ")
+    public int DNACh = 0;
+
+    @Parameter(label = "Endogenous channel (0-3): ")
+    public int endoCh = 1;
+
+    @Parameter(label = "TransGene channel (0-3): ")
+    public int transCh = 2;
+
+
+
+    @Parameter(label = "File Extension: ", choices = {".ims", ".nd2", ".czi", ".tif"})
+    public String extension;
+
     RoiManager roiManager;
     double pixelSize;
 
     String filename;
+    double pixel_size;
     @Override
     public void run() {
 
@@ -110,28 +120,25 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
             roiManager = new RoiManager();
             boolean first = true;
             for (File file : files) {
-                if (file.toString().contains(".ims") && !file.toString().contains(".xml")) {
+                if (file.toString().contains(extension) && !file.toString().contains(".xml")) {
                     //Open file and get filename and filepath
-
                     ImagePlus imp = IJ.openImage(file.getPath());
-                    Img<T> img = ImageJFunctions.wrapReal(imp);
-                    //Img<T> img = openDataset(file);
-                    uiService.show(img);
+                    ImagePlus impMaxProj = ZProjector.run(imp,"Max");
                     filename = FilenameUtils.removeExtension(file.getName());
-
-                    //Maximum Z-project
-                    RandomAccessibleInterval<T> zProj = (RandomAccessibleInterval) zProject(img);
+                    pixel_size = imp.getCalibration().pixelWidth;
 
 //                    if(first){
 //                    //IJ.run( ImageJFunctions.wrap(img, "test"), "Cellpose setup...", "");
 //                    first=false;}
 
                     //Get cell outlines
-                    RandomAccessibleInterval<T> slice647 = getChannel((RandomAccessibleInterval<T>) zProj, 3);
-                    ImagePlus outputImp = ImageJFunctions.wrap(slice647, "Slice_647");
-                    ImagePlus overlay = IJ.createImage("Overlay", "RGB", outputImp.getWidth(), outputImp.getHeight(), outputImp.getNChannels(), outputImp.getNSlices(), outputImp.getNFrames());
+
+                    ImagePlus sliceCent = ChannelSplitter.split(impMaxProj)[centromereCh];
+                    ImagePlus outputImp = ChannelSplitter.split(impMaxProj)[centromereCh];
+                    ImagePlus overlay = IJ.createImage("Overlay", "16-bit", outputImp.getWidth(), outputImp.getHeight(), outputImp.getNChannels(), outputImp.getNSlices(), outputImp.getNFrames());
                     overlay.show();
 
+                    //Use the centromere channel and cellpose to get cell outlines
                     outputImp.show();
                     IJ.run("Cellpose Advanced", "diameter=60 cellproba_threshold=0.0 flow_threshold=0.4" +
                             " anisotropy=1.0 diam_threshold=12.0 model=cyto2 nuclei_channel=0 cyto_channel=1 " +
@@ -139,38 +146,36 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                     getROIsfromMask();
                     Roi[] cells = roiManager.getRoisAsArray();
                     roiManager.reset();
-                    outputImp.show();
-                    IJ.run("RGB Color");
 
-                    //Create output image
-                    RandomAccessibleInterval<T> slice405 = getChannel(zProj, 0);
-                    slice405 = ops.filter().gauss(slice405, 5);
-                    RandomAccessibleInterval<T> slice488 = getChannel(zProj, 1);
-                    RandomAccessibleInterval<T> slice555 = getChannel(zProj, 2);
+                    //Split in to single channels
+                    ImagePlus sliceDNA = ChannelSplitter.split(impMaxProj)[DNACh];
+                    //removed gauss filter - not necessary if image not deconvolved
+                    ImagePlus sliceEndo = ChannelSplitter.split(impMaxProj)[endoCh];
+                    ImagePlus sliceTrans = ChannelSplitter.split(impMaxProj)[transCh];
 
                     ArrayList<double[]> output = new ArrayList<>();
                     for (Roi cell : cells) {
-                        //Find nuclei ch0
-                        //thresholding (Default) particles 10-Inf. Circ. 0.3-1 or cellpose?
-                        //uiService.show(slice405);
-                        ArrayList<Roi> nucleii = findNucleus(ImageJFunctions.wrap(slice405, "kSlice"), cell);
-                        //uiService.show(slice647);
+                        //For each cell find the nucleus in the DAPI channel
+                        ArrayList<Roi> nucleii = findNucleus(sliceDNA, cell);
                         roiManager.reset();
-                        //For each nucleus find centromeres in ch3 threshold per nucleus
+
                         for (Roi nucleus:nucleii) {
+                            //for each nucleus get the total intensity in the endo, trans and cent channels and the nuclear area
                             double[] intensities = new double[8];
-                            intensities[0] = getRoiIntensity(slice488,nucleus)*nucleus.getStatistics().area;
-                            intensities[2] = getRoiIntensity(slice555,nucleus)*nucleus.getStatistics().area;
+                            intensities[0] = getRoiIntensityIMP(sliceEndo,nucleus)*nucleus.getStatistics().area;
+                            intensities[2] = getRoiIntensityIMP(sliceTrans,nucleus)*nucleus.getStatistics().area;
                             intensities[4] = nucleus.getStatistics().area;
-                            intensities[6] = getRoiIntensity(slice647,nucleus)*nucleus.getStatistics().area;
-                            ArrayList<Roi> centromeres = findCentromeres(ImageJFunctions.wrap(slice647,"slice"), nucleus);
+                            intensities[6] = getRoiIntensityIMP(sliceCent,nucleus)*nucleus.getStatistics().area;
+
+                            //For each nucleus find centromeres in the centromere channel, threshold per nucleus
+                            ArrayList<Roi> centromeres = findCentromeres(sliceCent, nucleus);
                             roiManager.reset();
                             double area = 0;
                             for (Roi centromere: centromeres){
                                 area += centromere.getStatistics().area;
-                                    intensities[1] += getRoiIntensity(slice488,centromere)*centromere.getStatistics().area;
-                                    intensities[3] += getRoiIntensity(slice555,centromere)*centromere.getStatistics().area;
-                                    intensities[7] += getRoiIntensity(slice647,centromere)*centromere.getStatistics().area;
+                                    intensities[1] += getRoiIntensityIMP(sliceEndo,centromere)*centromere.getStatistics().area;
+                                    intensities[3] += getRoiIntensityIMP(sliceTrans,centromere)*centromere.getStatistics().area;
+                                    intensities[7] += getRoiIntensityIMP(sliceCent,centromere)*centromere.getStatistics().area;
                             }
                             intensities[0]= (intensities[0]-intensities[1])/(intensities[4]-area);
                             intensities[2]= (intensities[2]-intensities[3])/(intensities[4]-area);
@@ -185,17 +190,21 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
                             drawNumbers(output.size(),overlay,nucleus,centromeres);
                         }
                     }
-                    ImagePlus imp488 = ImageJFunctions.wrap(slice488,"488");
-                    imp488.show();
-                    ImagePlus imp555 = ImageJFunctions.wrap(slice555,"555");
-                    imp555.show();
-                    ImagePlus imp647 = ImageJFunctions.wrap(slice647,"647");
-                    imp647.show();
-                    overlay.show();
-                    IJ.run(overlay,"32-bit","");
 
-                    IJ.run("Merge Channels...", "c1=[555] c2=[488] c3=[647] c4=[Overlay] create");
+                    //Create output image
+                    sliceEndo.setTitle("Endo");
+                    sliceEndo.show();
+                    sliceTrans.setTitle("Trans");
+                    sliceTrans.show();
+                    sliceCent.setTitle("Centro");
+                    sliceCent.show();
+                    overlay.show();
+                    //c1, c2 etc here correspond to the colours in the imageJ Image>Channels>Merge Channels... tool
+                    //c1=red, c2=green, c3=blue, c4=grey, c5=cyan, c6=magenta, c7=yellow
+                    IJ.run("Merge Channels...", "c1=[Centro] c2=[Endo] c3=[Trans] c4=[Overlay] create");
                     IJ.save(WindowManager.getCurrentImage(), Paths.get(String.valueOf(filePath), filename + "_Overlay.tif").toString());
+
+                    //create or update results table
                     try {
                         MakeResults(output, T1, T2);
                     } catch (IOException e) {
@@ -207,35 +216,19 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
             }
         }
 
-    private double getRoiIntensity(RandomAccessibleInterval<T> image, Roi roi){
-        MaskInterval maskInterval = roiService.toMaskInterval(roi);
-        IterableInterval<T> mask = Views.interval(image, maskInterval);
-        int count = 0;
-        double  intensity = 0;
-        net.imglib2.Cursor<T> cursor = mask.localizingCursor();
-
-        //Loop through the pixels in the mask
-        for(int k =0; k< mask.size(); k++){
-            //RealType<T> value = cursor.get();
-            int x = (int) cursor.positionAsDoubleArray()[0];
-            int y = (int) cursor.positionAsDoubleArray()[1];
-
-            //If the pixel is in the bounding ROI
-            if(roi.contains(x,y)) {
-                count++;
-                intensity = intensity + cursor.get().getRealDouble();
-            }
-            //Move the cursors forwards
-            cursor.fwd();
-        }
-        return intensity/count;
+    private double getRoiIntensityIMP(ImagePlus image, Roi roi){
+        image.setRoi(roi);
+        ImageProcessor ip = image.getProcessor();
+        return ip.getStatistics().mean;
     }
 
     //Finds Kinetochore by applying a Yen threshold within an ROI
     private ArrayList<Roi> findNucleus(ImagePlus image, Roi roi){
+        IJ.run(image, "Gaussian Blur...", "sigma=0.3 scaled");
         image.setRoi(roi);
         IJ.setAutoThreshold(image, "Default dark");
-        IJ.run(image, "Analyze Particles...", "size=250-Infinity circularity=0.30-1.00 include add");
+
+        IJ.run(image, "Analyze Particles...", "size=10-35 circularity=0.30-1.00 include add");
         Roi[] allROIs = roiManager.getRoisAsArray();
         ArrayList<Roi> finalROIs = new ArrayList<>();
         for (Roi roIs : allROIs) {
@@ -251,9 +244,13 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
 
     private ArrayList<Roi> findCentromeres(ImagePlus image, Roi roi){
         roiManager.reset();
+        //ImagePlus imp = image.duplicate();
+        //IJ.run(imp, "Subtract Background...", "rolling=50");
         image.setRoi(roi);
-        IJ.setAutoThreshold(image, "Triangle dark");
-        IJ.run( image, "Analyze Particles...", "size=size=5-500 pixel exclude include add");
+        IJ.setAutoThreshold(image, "Yen dark");
+        double min = 5*pixel_size*pixel_size;
+        double max = 500*pixel_size*pixel_size;
+        IJ.run( image, "Analyze Particles...", "size=size="+min+"-"+max+" exclude include add");
         Roi[] allROIs = roiManager.getRoisAsArray();
         ArrayList<Roi> finalROIs = new ArrayList<>();
         for (Roi roIs : allROIs) {
@@ -265,28 +262,6 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
         }
         roiManager.reset();
         return finalROIs;
-    }
-
-    private RandomAccessibleInterval<T> getChannel(RandomAccessibleInterval<T> stack, int channel){
-        return ops.transform().hyperSliceView(stack, 2, channel);
-    }
-
-    //Takes a nD image dims[x,y,c,z,t] and performs a mean z-projection
-    private IterableInterval<T> zProject(RandomAccessibleInterval<T> stack){
-        int dim = 3;
-        long[] dims = stack.dimensionsAsLongArray();
-        long[] newDims = new long[dims.length-1];
-        int count = 0;
-        for(int i = 0; i < dims.length; i++) {
-            if(i!=dim){
-                newDims[count]=dims[i];
-                count++;
-            }
-        }
-        FinalDimensions dimensions = new FinalDimensions(newDims);
-        Img<FloatType> proj = ops.create().img(dimensions, new FloatType());
-        UnaryComputerOp maxOp = Computers.unary(ops, Ops.Stats.Max.class,RealType.class, Iterable.class);
-        return ops.transform().project(proj, stack, maxOp, dim);
     }
 
     private void drawNumbers(int Counter, ImagePlus ProjectedWindow, Roi roi, ArrayList<Roi> centromeres) {
@@ -318,7 +293,11 @@ public class HweiLing_Centromere_Quantification<T extends RealType<T>> implement
             bufferedWriter.newLine();
             bufferedWriter.write(formatter.format(date));
             bufferedWriter.newLine();
-            bufferedWriter.write("Threshold 1 = "+ T1 + " Threshold 2 = " + T2);
+            bufferedWriter.write("Pixel size:,"+pixel_size);
+            bufferedWriter.newLine();
+            bufferedWriter.write("DAPI CH:,"+DNACh+",Centromere CH:,"+centromereCh+",Endogenous CH:,"+endoCh+",Transfected CH:,"+transCh);
+            bufferedWriter.newLine();
+            bufferedWriter.write("Threshold 1 = ,"+ T1 + ",Threshold 2 =," + T2);
             bufferedWriter.newLine();
             bufferedWriter.write("File, Number,Nuclear_Area, Cent_Area, 488_total, 488_centromere, 555_total, 555_centromere,647_total, 647_centromere, T2>448>T1, T2>555>T1, 448>T2, 555>T2");//write header 1
             bufferedWriter.newLine();
